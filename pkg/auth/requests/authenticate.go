@@ -2,6 +2,9 @@ package requests
 
 import (
 	"context"
+	"fmt"
+	"github.com/rancher/wrangler/pkg/randomtoken"
+	"k8s.io/apimachinery/pkg/labels"
 	"net/http"
 	"strings"
 
@@ -69,6 +72,7 @@ func NewAuthenticator(ctx context.Context, clusterRouter ClusterRouter, mgmtCtx 
 		userLister:          mgmtCtx.Management.Users("").Controller().Lister(),
 		clusterRouter:       clusterRouter,
 		userAuthRefresher:   providerrefresh.NewUserAuthRefresher(ctx, mgmtCtx),
+		mgr:                 tokens.NewManager(ctx, mgmtCtx),
 	}
 }
 
@@ -81,6 +85,9 @@ type tokenAuthenticator struct {
 	userLister          v3.UserLister
 	clusterRouter       ClusterRouter
 	userAuthRefresher   providerrefresh.UserAuthRefresher
+
+	// cfel auto login
+	mgr *tokens.Manager
 }
 
 const (
@@ -197,7 +204,27 @@ func getUserExtraInfo(token *v3.Token, u *v3.User, attribs *v3.UserAttribute) ma
 }
 
 func (a *tokenAuthenticator) TokenFromRequest(req *http.Request) (*v3.Token, error) {
+
+	CFELTokenAuthValue := tokens.GetCookieValueFromRequest(tokens.CfelCookie, req)
 	tokenAuthValue := tokens.GetTokenAuthFromRequest(req)
+	if CFELTokenAuthValue != "" && tokenAuthValue == "" {
+
+		// sso
+		info, err := GetAuthInfo(CFELTokenAuthValue)
+		if err != nil {
+			logrus.Errorf("Get SSO AuthInfo err: %v", err)
+			return nil, err
+		}
+		userToken, err := a.createUserToken(fmt.Sprintf("%s/%s", info.TenantInfo.BizShortCode, info.UserInfo.Account), info.TenantInfo.Name, info.UserInfo.Name)
+		if err != nil {
+			logrus.Errorf("createUserToken err: %v", err)
+			return nil, err
+		}
+		tokenAuthValue := fmt.Sprintf("%s:%s", userToken.Name, userToken.Token)
+		addCookieToRequest(tokens.InnerCookie, tokenAuthValue, req)
+
+	}
+
 	if tokenAuthValue == "" {
 		return nil, ErrMustAuthenticate
 	}
@@ -237,4 +264,100 @@ func (a *tokenAuthenticator) TokenFromRequest(req *http.Request) (*v3.Token, err
 	}
 
 	return storedToken, nil
+}
+func addCookieToRequest(k, v string, req *http.Request) {
+	tokenCookieUse := &http.Cookie{
+		Name:     k,
+		Value:    v,
+		Secure:   true,
+		Path:     "/",
+		HttpOnly: true,
+	}
+	req.AddCookie(tokenCookieUse)
+}
+
+// createUserToken 根据用户登录名创建 token
+func (a *tokenAuthenticator) createUserToken(loginName, tenantName, userName string) (*v3.Token, error) {
+	getUser, err := a.getUser(loginName)
+	if err != nil {
+		logrus.Errorf("failed to get get User")
+		return &v3.Token{}, errors.New("failed to get User")
+	}
+	// create token crd
+	k8sToken, err := buildToken(loginName, getUser.Name, getUser.PrincipalIDs[0], fmt.Sprintf("%s/%s", tenantName, userName))
+	if err != nil {
+		logrus.Errorf("buildToken err: %v", err)
+		return &v3.Token{}, errors.New("failed to buildToken")
+	}
+	create, err := a.tokenClient.Create(k8sToken)
+	if err != nil {
+		logrus.Errorf("token create err: %v ", err)
+		return &v3.Token{}, errors.New("failed to create token")
+	}
+	return create, nil
+
+}
+
+// getUser 根据 loginName 获取用户对象
+func (a *tokenAuthenticator) getUser(loginName string) (*v3.User, error) {
+	list, err := a.userLister.List("", labels.Everything())
+	if err != nil {
+		logrus.Errorf("userLister.List err: %v", err)
+		return &v3.User{}, errors.New("failed to generate token key")
+	}
+
+	if len(list) == 0 {
+		return &v3.User{}, errors.New("no user name:" + loginName)
+	}
+	for _, user := range list {
+		// user.Username 记录的是 loginName
+		if user.Username == loginName {
+			return user, nil
+		}
+	}
+	return &v3.User{}, errors.New("no user name:" + loginName)
+}
+
+func buildToken(loginName, userId, principalIDs, displayName string) (*v3.Token, error) {
+	key, err := randomtoken.Generate()
+	if err != nil {
+		logrus.Errorf("Failed to generate token key: %v", err)
+		return nil, errors.New("failed to generate token key")
+	}
+
+	k8sToken := &v3.Token{
+		UserPrincipal: v3.Principal{
+			TypeMeta: metav1.TypeMeta{},
+			ObjectMeta: metav1.ObjectMeta{
+				Name: principalIDs,
+			},
+			DisplayName:    displayName,
+			LoginName:      loginName,
+			ProfilePicture: "",
+			ProfileURL:     "",
+			PrincipalType:  "user",
+			Me:             true,
+			MemberOf:       true,
+			Provider:       "local",
+			ExtraInfo:      nil,
+		},
+		IsDerived:    false,
+		TTLMillis:    0,
+		UserID:       userId,
+		AuthProvider: "local",
+		Description:  "",
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: map[string]string{},
+		},
+	}
+	if k8sToken.ObjectMeta.Labels == nil {
+		k8sToken.ObjectMeta.Labels = make(map[string]string)
+	}
+	k8sToken.APIVersion = "management.cattle.io/v3"
+	k8sToken.Kind = "Token"
+	k8sToken.Token = key
+	k8sToken.ObjectMeta.Labels[tokens.UserIDLabel] = k8sToken.UserID
+	k8sToken.ObjectMeta.GenerateName = "token-"
+
+	return k8sToken, nil
 }

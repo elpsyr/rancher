@@ -163,6 +163,15 @@ func (s *Server) Start(ctx context.Context, leader bool) error {
 
 func SetXAPICattleAuthHeader(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+
+		innerCookie := tokens.GetCookieFromRequest(tokens.InnerCookie, req)
+		tokenAuthValue := tokens.GetTokenAuthFromRequest(req)
+		if innerCookie != nil && tokenAuthValue == "" {
+			// set R_SESS cookie
+			innerCookie.Name = tokens.CookieName
+			http.SetCookie(rw, innerCookie)
+		}
+
 		if features.Auth.Enabled() {
 			user, ok := request.UserFrom(req.Context())
 			if ok {
