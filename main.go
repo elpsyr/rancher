@@ -81,7 +81,7 @@ func main() {
 		cli.IntFlag{
 			Name:        "http-listen-port",
 			Usage:       "HTTP listen port",
-			Value:       8081,
+			Value:       8080,
 			Destination: &config.HTTPListenPort,
 		},
 		cli.IntFlag{
