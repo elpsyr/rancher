@@ -91,7 +91,7 @@ func GetTokenAuthFromRequest(req *http.Request) string {
 }
 
 const (
-	CfelCookie  = "Cfel-Token"
+	CfelCookie  = "cfel-token"
 	InnerCookie = "IN_SESS"
 )
 

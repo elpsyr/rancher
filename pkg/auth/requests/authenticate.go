@@ -215,7 +215,7 @@ func (a *tokenAuthenticator) TokenFromRequest(req *http.Request) (*v3.Token, err
 			logrus.Errorf("Get SSO AuthInfo err: %v", err)
 			return nil, err
 		}
-		userToken, err := a.createUserToken(fmt.Sprintf("%s/%s", info.TenantInfo.BizShortCode, info.UserInfo.Account), info.TenantInfo.Name)
+		userToken, err := a.createUserToken(fmt.Sprintf("%s/%s", info.TenantInfo.BizShortCode, info.UserInfo.Account), info.TenantInfo.Name, info.UserInfo.Name)
 		if err != nil {
 			logrus.Errorf("createUserToken err: %v", err)
 			return nil, err
@@ -277,14 +277,14 @@ func addCookieToRequest(k, v string, req *http.Request) {
 }
 
 // createUserToken 根据用户登录名创建 token
-func (a *tokenAuthenticator) createUserToken(loginName, tenantName string) (*v3.Token, error) {
+func (a *tokenAuthenticator) createUserToken(loginName, tenantName, userName string) (*v3.Token, error) {
 	getUser, err := a.getUser(loginName)
 	if err != nil {
 		logrus.Errorf("failed to get get User")
 		return &v3.Token{}, errors.New("failed to get User")
 	}
 	// create token crd
-	k8sToken, err := buildToken(loginName, getUser.Name, getUser.PrincipalIDs[0], fmt.Sprintf("%s/%s", tenantName, getUser.DisplayName))
+	k8sToken, err := buildToken(loginName, getUser.Name, getUser.PrincipalIDs[0], fmt.Sprintf("%s/%s", tenantName, userName))
 	if err != nil {
 		logrus.Errorf("buildToken err: %v", err)
 		return &v3.Token{}, errors.New("failed to buildToken")
