@@ -2,9 +2,9 @@ name: Docker Image CI
 
 env:
   # Use docker.io for Docker Hub if empty
-  REGISTRY: 'registry.cn-shanghai.aliyuncs.com'
+  REGISTRY: 'registry.cn-shanghai.aliyuncs.com/fanyuanhang'
   # github.repository as <account>/<repo>
-  IMAGE_NAME: filestash
+  IMAGE_NAME: rancher
 
 on:
   push:
@@ -27,6 +27,14 @@ jobs:
        pwd
        echo "GitHub Actions workspace: ${{ github.workspace }}"
        ls "${{ github.workspace }}/docker"
+    # 执行 go mod vendor
+    - name: Vendor dependencies
+      run: go mod vendor
+    # 修改指定文件
+    - name: Modify cache.go
+      run: |
+        sed -i '39s/X-Frame-Options", "SAMEORIGIN"/X-Frame-Options", "ALLOWALL"/' vendor/github.com/rancher/apiserver/pkg/middleware/cache.go
+    # 登录  
     # 登录  
     - name: Log into registry ${{ env.REGISTRY }}
       if: github.event_name != 'pull_request'
