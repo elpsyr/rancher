@@ -90,6 +90,27 @@ func GetTokenAuthFromRequest(req *http.Request) string {
 	return tokenAuthValue
 }
 
+const (
+	CfelCookie  = "cfel-token" // cfel 服务携带的 token
+	InnerCookie = "IN_SESS"    // 内部传递 cookie
+)
+
+func GetCookieValueFromRequest(cookieName string, req *http.Request) string {
+	cookie, err := req.Cookie(cookieName)
+	if err != nil {
+		return ""
+	}
+	return cookie.Value
+}
+
+func GetCookieFromRequest(cookieName string, req *http.Request) *http.Cookie {
+	cookie, err := req.Cookie(cookieName)
+	if err != nil {
+		return nil
+	}
+	return cookie
+}
+
 func ConvertTokenResource(schema *types.Schema, token v3.Token) (map[string]interface{}, error) {
 	tokenData, err := convert.EncodeToMap(token)
 	if err != nil {

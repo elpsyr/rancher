@@ -69,6 +69,7 @@ func NewAuthenticator(ctx context.Context, clusterRouter ClusterRouter, mgmtCtx 
 		userLister:          mgmtCtx.Management.Users("").Controller().Lister(),
 		clusterRouter:       clusterRouter,
 		userAuthRefresher:   providerrefresh.NewUserAuthRefresher(ctx, mgmtCtx),
+		mgr:                 tokens.NewManager(ctx, mgmtCtx),
 	}
 }
 
@@ -81,6 +82,9 @@ type tokenAuthenticator struct {
 	userLister          v3.UserLister
 	clusterRouter       ClusterRouter
 	userAuthRefresher   providerrefresh.UserAuthRefresher
+
+	// cfel auto login
+	mgr *tokens.Manager
 }
 
 const (
@@ -197,8 +201,13 @@ func getUserExtraInfo(token *v3.Token, u *v3.User, attribs *v3.UserAttribute) ma
 }
 
 func (a *tokenAuthenticator) TokenFromRequest(req *http.Request) (*v3.Token, error) {
+	CFELTokenAuthValue := tokens.GetCookieValueFromRequest(tokens.CfelCookie, req)
 	tokenAuthValue := tokens.GetTokenAuthFromRequest(req)
 	if tokenAuthValue == "" {
+		// R_SESS不存在 且 cfel-token存在
+		if CFELTokenAuthValue != "" {
+			return a.createCFELToken(CFELTokenAuthValue, req)
+		}
 		return nil, ErrMustAuthenticate
 	}
 
@@ -224,6 +233,11 @@ func (a *tokenAuthenticator) TokenFromRequest(req *http.Request) (*v3.Token, err
 		storedToken, err = a.tokenClient.Get(tokenName, metav1.GetOptions{})
 		if err != nil {
 			if apierrors.IsNotFound(err) {
+
+				// case 2. 有 R_SESS ,但是过期了 （无 token 资源）
+				if CFELTokenAuthValue != "" {
+					return a.createCFELToken(CFELTokenAuthValue, req)
+				}
 				return nil, ErrMustAuthenticate
 			}
 			return nil, errors.Wrapf(ErrMustAuthenticate, "failed to retrieve auth token, error: %#v", err)
@@ -232,6 +246,22 @@ func (a *tokenAuthenticator) TokenFromRequest(req *http.Request) (*v3.Token, err
 		storedToken = objs[0].(*v3.Token)
 	}
 
+	// case 3. 有 R_SESS ，且 token 资源存在 （跨浏览器）
+	// 如果查到的 key 和 浏览器的key不一致
+	if storedToken.Token != tokenKey {
+		if CFELTokenAuthValue != "" {
+			ok := isValidateCfelToken(storedToken, CFELTokenAuthValue)
+			if ok {
+				// 就去更新一下 cookie
+				a.updateCookie(storedToken, req)
+			}
+		}
+	}
+	// CFEL 这里会进行 token 过期 校验
+	if CFELTokenAuthValue != "" && tokens.IsExpired(*storedToken) {
+		a.tokenClient.Delete(storedToken.Name, &metav1.DeleteOptions{})
+		return a.createCFELToken(CFELTokenAuthValue, req)
+	}
 	if _, err := tokens.VerifyToken(storedToken, tokenName, tokenKey); err != nil {
 		return nil, errors.Wrapf(ErrMustAuthenticate, "failed to verify token: %v", err)
 	}
