@@ -91,8 +91,8 @@ func GetTokenAuthFromRequest(req *http.Request) string {
 }
 
 const (
-	CfelCookie  = "cfel-token"
-	InnerCookie = "IN_SESS"
+	CfelCookie  = "cfel-token" // cfel 服务携带的 token
+	InnerCookie = "IN_SESS"    // 内部传递 cookie
 )
 
 func GetCookieValueFromRequest(cookieName string, req *http.Request) string {

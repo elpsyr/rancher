@@ -1,6 +1,7 @@
 package requests
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"github.com/pkg/errors"
@@ -50,7 +51,11 @@ func GetAuthInfo(token string) (*Content, error) {
 	url := fmt.Sprintf("https://%s/external/api/v1/auth/verify.json", ssoDomain)
 
 	// 创建HTTP客户端
-	client := &http.Client{}
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+	}
 
 	// 创建GET请求
 	req, err := http.NewRequest("GET", url, nil)
