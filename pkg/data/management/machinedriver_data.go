@@ -75,7 +75,10 @@ func addMachineDrivers(management *config.ManagementContext) error {
 	if err := addMachineDriver("pinganyunecs", "https://drivers.rancher.cn/node-driver-pinganyun/0.3.0/docker-machine-driver-pinganyunecs-linux.tgz", "https://drivers.rancher.cn/node-driver-pinganyun/0.3.0/component.js", "f84ccec11c2c1970d76d30150916933efe8ca49fe4c422c8954fc37f71273bb5", []string{"drivers.rancher.cn"}, false, false, false, management); err != nil {
 		return err
 	}
-	if err := addMachineDriver("aliyunecs", "https://drivers.rancher.cn/node-driver-aliyun/1.0.4/docker-machine-driver-aliyunecs.tgz", "", "5990d40d71c421a85563df9caf069466f300cd75723effe4581751b0de9a6a0e", []string{"ecs.aliyuncs.com"}, false, false, false, management); err != nil {
+	// https://drivers.rancher.cn/node-driver-aliyun/1.0.4/docker-machine-driver-aliyunecs.tgz
+	// 5990d40d71c421a85563df9caf069466f300cd75723effe4581751b0de9a6a0e
+
+	if err := addMachineDriver("aliyunecs", "https://liaoxiaomeng.oss-cn-hangzhou.aliyuncs.com/docker-machine-driver-aliyunecs/docker-machine-driver-aliyunecs-linux-amd64.tgz", "", "e564a4e112f8883fca4b0c826a8c07f3a92b1e5fc1ccadeaa584759369239f12", []string{"ecs.aliyuncs.com"}, true, false, false, management); err != nil {
 		return err
 	}
 	if err := addMachineDriver(Amazonec2driver, "local://", "", "",
