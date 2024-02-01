@@ -207,24 +207,9 @@ func (a *tokenAuthenticator) TokenFromRequest(req *http.Request) (*v3.Token, err
 
 	CFELTokenAuthValue := tokens.GetCookieValueFromRequest(tokens.CfelCookie, req)
 	tokenAuthValue := tokens.GetTokenAuthFromRequest(req)
+	// 未种入 R_SESS
 	if CFELTokenAuthValue != "" && tokenAuthValue == "" {
-
-		// sso
-		//info, err := GetAuthInfo(CFELTokenAuthValue)
-		//if err != nil {
-		//	logrus.Errorf("Get SSO AuthInfo err: %v", err)
-		//	return nil, err
-		//}
-		//userToken, err := a.createUserToken(fmt.Sprintf("%s/%s", info.TenantInfo.BizShortCode, info.UserInfo.Account), info.TenantInfo.Name, info.UserInfo.Name)
-		//if err != nil {
-		//	logrus.Errorf("createUserToken err: %v", err)
-		//	return nil, err
-		//}
-		//tokenAuthValue := fmt.Sprintf("%s:%s", userToken.Name, userToken.Token)
-		//addCookieToRequest(tokens.InnerCookie, tokenAuthValue, req)
-
 		return a.createCFELToken(CFELTokenAuthValue, req)
-
 	}
 
 	if tokenAuthValue == "" {
@@ -253,9 +238,8 @@ func (a *tokenAuthenticator) TokenFromRequest(req *http.Request) (*v3.Token, err
 		storedToken, err = a.tokenClient.Get(tokenName, metav1.GetOptions{})
 		if err != nil {
 			if apierrors.IsNotFound(err) {
-				// cfel:
-				// 如果有 R_SESS ,但是过期了
-				// token 过期去创建新的 token
+
+				// case 2. 有 R_SESS ,但是过期了 （无 token 资源）
 				if CFELTokenAuthValue != "" {
 					return a.createCFELToken(CFELTokenAuthValue, req)
 				}
@@ -267,11 +251,45 @@ func (a *tokenAuthenticator) TokenFromRequest(req *http.Request) (*v3.Token, err
 		storedToken = objs[0].(*v3.Token)
 	}
 
+	// case 3. 有 R_SESS ，且 token 资源存在 （跨浏览器）
+	// 如果查到的 key 和 浏览器的key不一致
+	if storedToken.Token != tokenKey {
+		if CFELTokenAuthValue != "" {
+			ok := isValidateCfelToken(storedToken, CFELTokenAuthValue)
+			if ok {
+				// 就去更新一下 cookie
+				a.updateCookie(storedToken, req)
+			}
+		}
+	}
+
 	if _, err := tokens.VerifyToken(storedToken, tokenName, tokenKey); err != nil {
 		return nil, errors.Wrapf(ErrMustAuthenticate, "failed to verify token: %v", err)
 	}
 
 	return storedToken, nil
+}
+
+// updateCookie 设置 InnerCookie，更新cookie
+func (a *tokenAuthenticator) updateCookie(token *v3.Token, req *http.Request) {
+	tokenAuthValue := fmt.Sprintf("%s:%s", token.Name, token.Token)
+	addCookieToRequest(tokens.InnerCookie, tokenAuthValue, req)
+}
+
+// 判断 cfel-token 是否有效
+func isValidateCfelToken(token *v3.Token, cfel string) bool {
+	// sso
+	info, err := GetAuthInfo(cfel)
+	if err != nil {
+		logrus.Errorf("Get SSO AuthInfo err: %v", err)
+		return false
+	}
+	// format like ：xxx-xxxxx
+	userInfo := fmt.Sprintf("%s-%s", info.TenantInfo.BizShortCode, info.UserInfo.Account)
+	if userInfo == token.Name {
+		return true
+	}
+	return false
 }
 
 // createCFELToken 根据 cfel-token 创建 rancher token,并设置 InnerCookie
@@ -284,11 +302,13 @@ func (a *tokenAuthenticator) createCFELToken(cfel string, req *http.Request) (*v
 	}
 	// 判断资源是否已经创建
 	// 这里要看是否是
-	//loginName := fmt.Sprintf("%s/%s", info.TenantInfo.BizShortCode, info.UserInfo.Account)
-	//token, err := a.clusterHasTokenWithLoginName(loginName)
-	//if err == nil && token != nil {
-	//	return token, nil
-	//}
+	loginName := fmt.Sprintf("%s-%s", info.TenantInfo.BizShortCode, info.UserInfo.Account)
+	tokenGet, err := a.clusterHasTokenWithLoginName(loginName)
+	if err == nil && tokenGet != nil {
+		tokenAuthValue := fmt.Sprintf("%s:%s", tokenGet.Name, tokenGet.Token)
+		addCookieToRequest(tokens.InnerCookie, tokenAuthValue, req)
+		return tokenGet, nil
+	}
 
 	userToken, err := a.createUserToken(fmt.Sprintf("%s/%s", info.TenantInfo.BizShortCode, info.UserInfo.Account), info.TenantInfo.Name, info.UserInfo.Name)
 	if err != nil {
@@ -302,18 +322,11 @@ func (a *tokenAuthenticator) createCFELToken(cfel string, req *http.Request) (*v
 
 func (a *tokenAuthenticator) clusterHasTokenWithLoginName(loginName string) (*v3.Token, error) {
 	// 使用 List 方法获取所有 Token 资源
-	tokenList, err := a.tokenClient.List(metav1.ListOptions{})
+	tokenGet, err := a.tokenClient.Get(loginName, metav1.GetOptions{})
 	if err != nil {
 		return nil, err // 处理错误
 	}
-
-	// 遍历列表，查找是否有匹配 LoginName 的资源
-	for _, token := range tokenList.Items {
-		if token.UserPrincipal.LoginName == loginName {
-			return &token, nil // 找到资源，返回 true
-		}
-	}
-	return nil, errors.New("token not found") // 未找到资源，返回 false
+	return tokenGet, nil
 }
 
 func addCookieToRequest(k, v string, req *http.Request) {
@@ -393,7 +406,7 @@ func buildToken(loginName, userId, principalIDs, displayName string) (*v3.Token,
 			ExtraInfo:      nil,
 		},
 		IsDerived:    false,
-		TTLMillis:    0,
+		TTLMillis:    3600000,
 		UserID:       userId,
 		AuthProvider: "local",
 		Description:  "",
@@ -408,7 +421,8 @@ func buildToken(loginName, userId, principalIDs, displayName string) (*v3.Token,
 	k8sToken.Kind = "Token"
 	k8sToken.Token = key
 	k8sToken.ObjectMeta.Labels[tokens.UserIDLabel] = k8sToken.UserID
-	k8sToken.ObjectMeta.GenerateName = "token-"
+	k8sToken.ObjectMeta.GenerateName = "cfel-auth"
+	k8sToken.ObjectMeta.Name = fmt.Sprintf("%s-%s", strings.Split(loginName, "/")[0], strings.Split(loginName, "/")[1])
 
 	return k8sToken, nil
 }

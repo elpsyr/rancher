@@ -40,6 +40,7 @@ type Content struct {
 	UserInfo   UserInfo   `json:"userInfo"`
 }
 
+// GetAuthInfo 获取 sso 租户信息
 func GetAuthInfo(token string) (*Content, error) {
 	// 设置请求的URL
 	ssoDomain := os.Getenv("CFEL_SSO_DOMAIN")
