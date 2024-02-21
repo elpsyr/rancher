@@ -206,6 +206,14 @@ func getUserExtraInfo(token *v3.Token, u *v3.User, attribs *v3.UserAttribute) ma
 func (a *tokenAuthenticator) TokenFromRequest(req *http.Request) (*v3.Token, error) {
 
 	CFELTokenAuthValue := tokens.GetCookieValueFromRequest(tokens.CfelCookie, req)
+	// 校验 cfel-token 是否过期
+	if CFELTokenAuthValue != "" {
+		_, err := GetAuthInfo(CFELTokenAuthValue)
+		if err != nil {
+			logrus.Errorf("Get SSO AuthInfo err: %v", err)
+			return nil, ErrMustAuthenticate
+		}
+	}
 	tokenAuthValue := tokens.GetTokenAuthFromRequest(req)
 	// 未种入 R_SESS
 	if CFELTokenAuthValue != "" && tokenAuthValue == "" {

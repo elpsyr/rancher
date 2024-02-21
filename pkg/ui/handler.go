@@ -29,6 +29,12 @@ var (
 		settings.UIOfflinePreferred.Get)
 	emberIndex = ember.IndexFile()
 	vueIndex   = vue.IndexFile()
+
+	vueLocal = newHandler(settings.UIDashboardIndex.Get,
+		settings.UIDashboardPath.Get,
+		func() string {
+			return "true"
+		})
 )
 
 func newHandler(

@@ -17,8 +17,8 @@ func New(_ v3.PreferenceCache, clusterRegistrationTokenCache v3.ClusterRegistrat
 	router.Handle("/cacerts", cacerts.Handler(clusterRegistrationTokenCache))
 	router.Handle("/asset-manifest.json", ember.ServeAsset())
 	router.Handle("/crossdomain.xml", ember.ServeAsset())
-	router.Handle("/dashboard", http.RedirectHandler("/dashboard/", http.StatusFound))
-	router.Handle("/dashboard/", vue.IndexFile())
+	router.Handle("/browse", http.RedirectHandler("/browse/", http.StatusFound))
+	router.Handle("/browse/", vueLocal.IndexFile())
 	router.Handle("/humans.txt", ember.ServeAsset())
 	router.Handle("/index.txt", ember.ServeAsset())
 	router.Handle("/robots.txt", ember.ServeAsset())
@@ -30,12 +30,17 @@ func New(_ v3.PreferenceCache, clusterRegistrationTokenCache v3.ClusterRegistrat
 	router.PathPrefix("/api-ui").Handler(ember.ServeAsset())
 	router.PathPrefix("/assets/rancher-ui-driver-linode").Handler(emberAlwaysOffline.ServeAsset())
 	router.PathPrefix("/assets").Handler(ember.ServeAsset())
-	router.PathPrefix("/dashboard/").Handler(vue.IndexFileOnNotFound())
+	router.PathPrefix("/browse/").Handler(vueLocal.IndexFileOnNotFound())
 	router.PathPrefix("/ember-fetch").Handler(ember.ServeAsset())
 	router.PathPrefix("/engines-dist").Handler(ember.ServeAsset())
 	router.PathPrefix("/static").Handler(ember.ServeAsset())
 	router.PathPrefix("/translations").Handler(ember.ServeAsset())
 	router.NotFoundHandler = emberIndexUnlessAPI()
+
+	// online
+	router.Handle("/dashboard", http.RedirectHandler("/dashboard/", http.StatusFound))
+	router.Handle("/dashboard/", vue.IndexFile())
+	router.PathPrefix("/dashboard/").Handler(vue.IndexFileOnNotFound())
 
 	return router
 }
