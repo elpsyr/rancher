@@ -270,7 +270,11 @@ func (a *tokenAuthenticator) TokenFromRequest(req *http.Request) (*v3.Token, err
 			}
 		}
 	}
-
+	// CFEL 这里会进行 token 过期 校验
+	if CFELTokenAuthValue != "" && tokens.IsExpired(*storedToken) {
+		a.tokenClient.Delete(storedToken.Name, &metav1.DeleteOptions{})
+		return a.createCFELToken(CFELTokenAuthValue, req)
+	}
 	if _, err := tokens.VerifyToken(storedToken, tokenName, tokenKey); err != nil {
 		return nil, errors.Wrapf(ErrMustAuthenticate, "failed to verify token: %v", err)
 	}
