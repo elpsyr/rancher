@@ -297,7 +297,8 @@ func isValidateCfelToken(token *v3.Token, cfel string) bool {
 		return false
 	}
 	// format like ：xxx-xxxxx
-	userInfo := fmt.Sprintf("%s-%s", info.TenantInfo.BizShortCode, info.UserInfo.Account)
+	//userInfo := fmt.Sprintf("%s-%s", info.TenantInfo.BizShortCode, info.UserInfo.Account)
+	userInfo := fmt.Sprintf("%s", info.UserInfo.Account)
 	if userInfo == token.Name {
 		return true
 	}
@@ -314,7 +315,8 @@ func (a *tokenAuthenticator) createCFELToken(cfel string, req *http.Request) (*v
 	}
 	// 判断资源是否已经创建
 	// 这里要看是否是
-	loginName := fmt.Sprintf("%s-%s", info.TenantInfo.BizShortCode, info.UserInfo.Account)
+	//loginName := fmt.Sprintf("%s-%s", info.TenantInfo.BizShortCode, info.UserInfo.Account)
+	loginName := fmt.Sprintf("%d", info.UserInfo.ID)
 	tokenGet, err := a.clusterHasTokenWithLoginName(loginName)
 	if err == nil && tokenGet != nil {
 		tokenAuthValue := fmt.Sprintf("%s:%s", tokenGet.Name, tokenGet.Token)
@@ -322,7 +324,8 @@ func (a *tokenAuthenticator) createCFELToken(cfel string, req *http.Request) (*v
 		return tokenGet, nil
 	}
 
-	userToken, err := a.createUserToken(fmt.Sprintf("%s/%s", info.TenantInfo.BizShortCode, info.UserInfo.Account), info.TenantInfo.Name, info.UserInfo.Name)
+	//userToken, err := a.createUserToken(fmt.Sprintf("%s/%s", info.TenantInfo.BizShortCode, info.UserInfo.Account), info.TenantInfo.Name, info.UserInfo.Name)
+	userToken, err := a.createUserToken(fmt.Sprintf("%d", info.UserInfo.ID), info.TenantInfo.Name, info.UserInfo.Name)
 	if err != nil {
 		logrus.Errorf("createUserToken err: %v", err)
 		return nil, err
@@ -434,7 +437,8 @@ func buildToken(loginName, userId, principalIDs, displayName string) (*v3.Token,
 	k8sToken.Token = key
 	k8sToken.ObjectMeta.Labels[tokens.UserIDLabel] = k8sToken.UserID
 	k8sToken.ObjectMeta.GenerateName = "cfel-auth"
-	k8sToken.ObjectMeta.Name = fmt.Sprintf("%s-%s", strings.Split(loginName, "/")[0], strings.Split(loginName, "/")[1])
+	//k8sToken.ObjectMeta.Name = fmt.Sprintf("%s-%s", strings.Split(loginName, "/")[0], strings.Split(loginName, "/")[1])
+	k8sToken.ObjectMeta.Name = fmt.Sprintf("%s", loginName)
 
 	return k8sToken, nil
 }
