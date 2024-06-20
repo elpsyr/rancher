@@ -10,7 +10,7 @@ import (
 	"github.com/golang/mock/gomock"
 	catalog "github.com/rancher/rancher/pkg/apis/catalog.cattle.io/v1"
 	v3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
-	"github.com/rancher/wrangler/pkg/generic/fake"
+	"github.com/rancher/wrangler/v2/pkg/generic/fake"
 	"github.com/stretchr/testify/assert"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart"
@@ -307,10 +307,13 @@ func TestInstallCharts(t *testing.T) {
 			},
 			desiredCharts: map[desiredKey]map[string]any{
 				{
-					namespace:    "cattle-fleet-system",
-					name:         "fleet",
-					minVersion:   "2.0.0",
-					exactVersion: "2.0.0",
+					namespace: "cattle-fleet-system",
+					name:      "fleet",
+					// major, minor and patch segments match a version from the index, which is
+					// where Helm could return a matching version based on those segments, but not
+					// strictly equal to the specified one
+					minVersion: "3.0.0+up1.2.3",
+					// no exact version
 				}: {},
 				{
 					namespace:    "cattle-system",
@@ -324,7 +327,7 @@ func TestInstallCharts(t *testing.T) {
 				"fleet":           false,
 				"rancher-webhook": true,
 			},
-			expectedErr: errors.New("no chart version found"),
+			expectedErr: errors.New("specified version 3.0.0+up1.2.3 doesn't exist in the index"),
 		},
 	}
 

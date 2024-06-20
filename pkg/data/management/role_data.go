@@ -105,7 +105,8 @@ func addRoles(wrangler *wrangler.Context, management *config.ManagementContext) 
 		addRule().apiGroups("management.cattle.io").resources("nodedrivers").verbs("*").
 		addRule().apiGroups("management.cattle.io").resources("kontainerdrivers").verbs("*").
 		addRule().apiGroups("management.cattle.io").resources("roletemplates").verbs("*").
-		addRule().apiGroups("management.cattle.io").resources("catalogs", "templates", "templateversions").verbs("*")
+		addRule().apiGroups("management.cattle.io").resources("catalogs", "templates", "templateversions").verbs("*").
+		addRule().apiGroups("management.cattle.io").resources("features").verbs("update", "patch", "security-enable").resourceNames("external-rules")
 
 	// restricted-admin can edit settings if rancher is bootstrapped with restricted-admin role
 	if settings.RestrictedDefaultAdmin.Get() == "true" {
@@ -352,7 +353,7 @@ func addRoles(wrangler *wrangler.Context, management *config.ManagementContext) 
 		addRule().apiGroups("").resources("pods", "pods/attach", "pods/exec", "pods/portforward", "pods/proxy", "replicationcontrollers",
 		"replicationcontrollers/scale").verbs("*").
 		addRule().apiGroups("apps").resources("daemonsets", "deployments", "deployments/rollback", "deployments/scale", "replicasets",
-		"replicasets/scale", "statefulsets").verbs("*").
+		"replicasets/scale", "statefulsets", "statefulsets/scale").verbs("*").
 		addRule().apiGroups("autoscaling").resources("horizontalpodautoscalers").verbs("*").
 		addRule().apiGroups("batch").resources("cronjobs", "jobs").verbs("*").
 		addRule().apiGroups("").resources("limitranges", "pods/log", "pods/status", "replicationcontrollers/status", "resourcequotas", "resourcequotas/status", "bindings").verbs("get", "list", "watch").
@@ -429,9 +430,25 @@ func addRoles(wrangler *wrangler.Context, management *config.ManagementContext) 
 		addRule().apiGroups("monitoring.cattle.io").resources("prometheus").verbs("view").
 		setRoleTemplateNames("view")
 
-	rb.addRoleTemplate("View Monitoring", "monitoring-ui-view", "project", true, false, false)
+	proxyNames := []string{
+		"http:rancher-monitoring-prometheus:9090",
+		"https:rancher-monitoring-prometheus:9090",
+		"http:rancher-monitoring-alertmanager:9093",
+		"https:rancher-monitoring-alertmanager:9093",
+		"http:rancher-monitoring-grafana:80",
+		"https:rancher-monitoring-grafana:80",
+	}
+	endpointNames := []string{
+		"rancher-monitoring-prometheus",
+		"rancher-monitoring-alertmanager",
+		"rancher-monitoring-grafana",
+	}
 
-	rb.addRoleTemplate("View Navlinks", "navlinks-view", "project", true, false, false).
+	rb.addRoleTemplate("View Monitoring", "monitoring-ui-view", "project", true, false, false).
+		addExternalRule().apiGroups("").resources("services/proxy").verbs("get", "create").resourceNames(proxyNames...).
+		addExternalRule().apiGroups("").resources("endpoints").verbs("list").resourceNames(endpointNames...)
+
+	rb.addRoleTemplate("View Navlinks", "navlinks-view", "project", false, false, false).
 		addRule().apiGroups("ui.cattle.io").resources("navlinks").verbs("get", "list", "watch")
 
 	// Not specific to project or cluster

@@ -3,12 +3,15 @@
 package deleting
 
 import (
+	"strings"
 	"testing"
 
-	"github.com/rancher/rancher/tests/framework/clients/rancher"
-	"github.com/rancher/rancher/tests/framework/extensions/clusters"
-	"github.com/rancher/rancher/tests/framework/extensions/provisioning"
-	"github.com/rancher/rancher/tests/framework/pkg/session"
+	apisV1 "github.com/rancher/rancher/pkg/apis/provisioning.cattle.io/v1"
+	"github.com/rancher/shepherd/clients/rancher"
+	v1 "github.com/rancher/shepherd/clients/rancher/v1"
+	"github.com/rancher/shepherd/extensions/clusters"
+	"github.com/rancher/shepherd/extensions/provisioning"
+	"github.com/rancher/shepherd/pkg/session"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
@@ -34,11 +37,35 @@ func (c *ClusterDeleteTestSuite) SetupSuite() {
 }
 
 func (c *ClusterDeleteTestSuite) TestDeletingCluster() {
-	clusterID, err := clusters.GetV1ProvisioningClusterByName(c.client, c.client.RancherConfig.ClusterName)
-	require.NoError(c.T(), err)
+	tests := []struct {
+		name   string
+		client *rancher.Client
+	}{
+		{"cluster", c.client},
+	}
 
-	clusters.DeleteK3SRKE2Cluster(c.client, clusterID)
-	provisioning.VerifyDeleteRKE2K3SCluster(c.T(), c.client, clusterID)
+	for _, tt := range tests {
+		clusterID, err := clusters.GetV1ProvisioningClusterByName(c.client, c.client.RancherConfig.ClusterName)
+		require.NoError(c.T(), err)
+
+		cluster, err := tt.client.Steve.SteveType(clusters.ProvisioningSteveResourceType).ByID(clusterID)
+		require.NoError(c.T(), err)
+
+		updatedCluster := new(apisV1.Cluster)
+		err = v1.ConvertToK8sType(cluster, &updatedCluster)
+		require.NoError(c.T(), err)
+
+		if strings.Contains(updatedCluster.Spec.KubernetesVersion, "rke2") {
+			tt.name = "Deleting RKE2 " + tt.name
+		} else {
+			tt.name = "Deleting K3S " + tt.name
+		}
+
+		c.Run(tt.name, func() {
+			clusters.DeleteK3SRKE2Cluster(tt.client, clusterID)
+			provisioning.VerifyDeleteRKE2K3SCluster(c.T(), tt.client, clusterID)
+		})
+	}
 }
 
 // In order for 'go test' to run this suite, we need to create

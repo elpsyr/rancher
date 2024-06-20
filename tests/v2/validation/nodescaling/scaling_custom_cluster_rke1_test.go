@@ -5,12 +5,12 @@ package nodescaling
 import (
 	"testing"
 
-	"github.com/rancher/rancher/tests/framework/clients/rancher"
-	"github.com/rancher/rancher/tests/framework/extensions/clusters"
-	nodepools "github.com/rancher/rancher/tests/framework/extensions/rke1/nodepools"
-	"github.com/rancher/rancher/tests/framework/extensions/scalinginput"
-	"github.com/rancher/rancher/tests/framework/pkg/config"
-	"github.com/rancher/rancher/tests/framework/pkg/session"
+	"github.com/rancher/shepherd/clients/rancher"
+	"github.com/rancher/shepherd/extensions/clusters"
+	nodepools "github.com/rancher/shepherd/extensions/rke1/nodepools"
+	"github.com/rancher/shepherd/extensions/scalinginput"
+	"github.com/rancher/shepherd/pkg/config"
+	"github.com/rancher/shepherd/pkg/session"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
@@ -71,11 +71,11 @@ func (s *RKE1CustomClusterNodeScalingTestSuite) TestScalingRKE1CustomClusterNode
 		nodeRoles nodepools.NodeRoles
 		client    *rancher.Client
 	}{
-		{"Scaling control plane by 1", nodeRolesControlPlane, s.client},
-		{"Scaling etcd by 1", nodeRolesEtcd, s.client},
-		{"Scaling etcd and control plane by 1", nodeRolesEtcdControlPlane, s.client},
-		{"Scaling worker by 1", nodeRolesWorker, s.client},
-		{"Scaling worker by 2", nodeRolesTwoWorkers, s.client},
+		{"Scaling custom control plane by 1", nodeRolesControlPlane, s.client},
+		{"Scaling custom etcd by 1", nodeRolesEtcd, s.client},
+		{"Scaling custom etcd and control plane by 1", nodeRolesEtcdControlPlane, s.client},
+		{"Scaling custom worker by 1", nodeRolesWorker, s.client},
+		{"Scaling custom worker by 2", nodeRolesTwoWorkers, s.client},
 	}
 
 	for _, tt := range tests {

@@ -5,12 +5,12 @@ package nodescaling
 import (
 	"testing"
 
-	"github.com/rancher/rancher/tests/framework/clients/rancher"
-	"github.com/rancher/rancher/tests/framework/extensions/clusters"
-	"github.com/rancher/rancher/tests/framework/extensions/clusters/aks"
-	"github.com/rancher/rancher/tests/framework/extensions/scalinginput"
-	"github.com/rancher/rancher/tests/framework/pkg/config"
-	"github.com/rancher/rancher/tests/framework/pkg/session"
+	"github.com/rancher/shepherd/clients/rancher"
+	"github.com/rancher/shepherd/extensions/clusters"
+	"github.com/rancher/shepherd/extensions/clusters/aks"
+	"github.com/rancher/shepherd/extensions/scalinginput"
+	"github.com/rancher/shepherd/pkg/config"
+	"github.com/rancher/shepherd/pkg/session"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
@@ -53,8 +53,8 @@ func (s *AKSNodeScalingTestSuite) TestScalingAKSNodePools() {
 		aksNodes aks.NodePool
 		client   *rancher.Client
 	}{
-		{"Scaling agentpool by 1", scaleOneNode, s.client},
-		{"Scaling agentpool by 2", scaleTwoNodes, s.client},
+		{"Scaling AKS agentpool by 1", scaleOneNode, s.client},
+		{"Scaling AKS agentpool by 2", scaleTwoNodes, s.client},
 	}
 
 	for _, tt := range tests {
@@ -81,5 +81,6 @@ func (s *AKSNodeScalingTestSuite) TestScalingAKSNodePoolsDynamicInput() {
 // In order for 'go test' to run this suite, we need to create
 // a normal test function and pass our suite to suite.Run
 func TestAKSNodeScalingTestSuite(t *testing.T) {
+	t.Skip("This test has been deprecated; check https://github.com/rancher/hosted-providers-e2e for updated tests")
 	suite.Run(t, new(AKSNodeScalingTestSuite))
 }

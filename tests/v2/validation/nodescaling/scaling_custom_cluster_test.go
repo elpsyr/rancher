@@ -3,14 +3,17 @@
 package nodescaling
 
 import (
+	"strings"
 	"testing"
 
-	"github.com/rancher/rancher/tests/framework/clients/rancher"
-	"github.com/rancher/rancher/tests/framework/extensions/clusters"
-	"github.com/rancher/rancher/tests/framework/extensions/machinepools"
-	"github.com/rancher/rancher/tests/framework/extensions/scalinginput"
-	"github.com/rancher/rancher/tests/framework/pkg/config"
-	"github.com/rancher/rancher/tests/framework/pkg/session"
+	apisV1 "github.com/rancher/rancher/pkg/apis/provisioning.cattle.io/v1"
+	"github.com/rancher/shepherd/clients/rancher"
+	v1 "github.com/rancher/shepherd/clients/rancher/v1"
+	"github.com/rancher/shepherd/extensions/clusters"
+	"github.com/rancher/shepherd/extensions/machinepools"
+	"github.com/rancher/shepherd/extensions/scalinginput"
+	"github.com/rancher/shepherd/pkg/config"
+	"github.com/rancher/shepherd/pkg/session"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
@@ -71,16 +74,29 @@ func (s *CustomClusterNodeScalingTestSuite) TestScalingCustomClusterNodes() {
 		nodeRoles machinepools.NodeRoles
 		client    *rancher.Client
 	}{
-		{"Scaling control plane by 1", nodeRolesControlPlane, s.client},
-		{"Scaling etcd by 1", nodeRolesEtcd, s.client},
-		{"Scaling etcd and control plane by 1", nodeRolesEtcdControlPlane, s.client},
-		{"Scaling worker by 1", nodeRolesWorker, s.client},
-		{"Scaling worker by 2", nodeRolesTwoWorkers, s.client},
+		{"control plane by 1", nodeRolesControlPlane, s.client},
+		{"etcd by 1", nodeRolesEtcd, s.client},
+		{"etcd and control plane by 1", nodeRolesEtcdControlPlane, s.client},
+		{"worker by 1", nodeRolesWorker, s.client},
+		{"worker by 2", nodeRolesTwoWorkers, s.client},
 	}
 
 	for _, tt := range tests {
 		clusterID, err := clusters.GetV1ProvisioningClusterByName(s.client, s.client.RancherConfig.ClusterName)
 		require.NoError(s.T(), err)
+
+		cluster, err := tt.client.Steve.SteveType(ProvisioningSteveResourceType).ByID(clusterID)
+		require.NoError(s.T(), err)
+
+		updatedCluster := new(apisV1.Cluster)
+		err = v1.ConvertToK8sType(cluster, &updatedCluster)
+		require.NoError(s.T(), err)
+
+		if strings.Contains(updatedCluster.Spec.KubernetesVersion, "rke2") {
+			tt.name = "Scaling custom RKE2 " + tt.name
+		} else {
+			tt.name = "Scaling custom K3S " + tt.name
+		}
 
 		s.Run(tt.name, func() {
 			scalingRKE2K3SCustomClusterPools(s.T(), s.client, clusterID, s.scalingConfig.NodeProvider, tt.nodeRoles)

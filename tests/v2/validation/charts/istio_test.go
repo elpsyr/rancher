@@ -12,14 +12,14 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/rancher/norman/types"
-	"github.com/rancher/rancher/tests/framework/clients/rancher"
-	"github.com/rancher/rancher/tests/framework/clients/rancher/catalog"
-	management "github.com/rancher/rancher/tests/framework/clients/rancher/generated/management/v3"
-	"github.com/rancher/rancher/tests/framework/extensions/charts"
-	"github.com/rancher/rancher/tests/framework/extensions/clusters"
-	"github.com/rancher/rancher/tests/framework/extensions/ingresses"
-	"github.com/rancher/rancher/tests/framework/extensions/namespaces"
-	"github.com/rancher/rancher/tests/framework/pkg/session"
+	"github.com/rancher/shepherd/clients/rancher"
+	"github.com/rancher/shepherd/clients/rancher/catalog"
+	management "github.com/rancher/shepherd/clients/rancher/generated/management/v3"
+	"github.com/rancher/shepherd/extensions/charts"
+	"github.com/rancher/shepherd/extensions/clusters"
+	"github.com/rancher/shepherd/extensions/ingresses"
+	"github.com/rancher/shepherd/extensions/namespaces"
+	"github.com/rancher/shepherd/pkg/session"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -51,14 +51,14 @@ func (i *IstioTestSuite) SetupSuite() {
 	clusterName := client.RancherConfig.ClusterName
 	require.NotEmptyf(i.T(), clusterName, "Cluster name to install is not set")
 
-	// Get clusterID with clusterName
-	clusterID, err := clusters.GetClusterIDByName(client, clusterName)
+	// Get cluster meta
+	cluster, err := clusters.NewClusterMeta(client, clusterName)
 	require.NoError(i.T(), err)
 
 	// Change kiali and jaeger paths if it's not local cluster
-	if clusterID != clusterName {
-		kialiPath = fmt.Sprintf("k8s/clusters/%s/%s", clusterID, kialiPath)
-		tracingPath = fmt.Sprintf("k8s/clusters/%s/%s", clusterID, tracingPath)
+	if !cluster.IsLocal {
+		kialiPath = fmt.Sprintf("k8s/clusters/%s/%s", cluster.ID, kialiPath)
+		tracingPath = fmt.Sprintf("k8s/clusters/%s/%s", cluster.ID, tracingPath)
 	}
 
 	// Get latest versions of monitoring & istio charts
@@ -69,7 +69,7 @@ func (i *IstioTestSuite) SetupSuite() {
 
 	// Create project
 	projectConfig := &management.Project{
-		ClusterID: clusterID,
+		ClusterID: cluster.ID,
 		Name:      exampleAppProjectName,
 	}
 	createdProject, err := client.Management.Project.Create(projectConfig)
@@ -79,26 +79,22 @@ func (i *IstioTestSuite) SetupSuite() {
 
 	i.chartInstallOptions = &chartInstallOptions{
 		monitoring: &charts.InstallOptions{
-			ClusterName: clusterName,
-			ClusterID:   clusterID,
-			Version:     latestMonitoringVersion,
-			ProjectID:   createdProject.ID,
+			Version:   latestMonitoringVersion,
+			ProjectID: createdProject.ID,
 		},
 		istio: &charts.InstallOptions{
-			ClusterName: clusterName,
-			ClusterID:   clusterID,
-			Version:     latestIstioVersion,
-			ProjectID:   createdProject.ID,
+			Version:   latestIstioVersion,
+			ProjectID: createdProject.ID,
 		},
 	}
 
 	i.chartFeatureOptions = &chartFeatureOptions{
 		monitoring: &charts.RancherMonitoringOpts{
-			IngressNginx:         true,
-			RKEControllerManager: true,
-			RKEEtcd:              true,
-			RKEProxy:             true,
-			RKEScheduler:         true,
+			IngressNginx:      true,
+			ControllerManager: true,
+			Etcd:              true,
+			Proxy:             true,
+			Scheduler:         true,
 		},
 		istio: &charts.RancherIstioOpts{
 			IngressGateways: true,

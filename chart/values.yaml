@@ -60,6 +60,9 @@ ingress:
   includeDefaultExtraAnnotations: true
   extraAnnotations: {}
   ingressClassName: ""
+  # Certain ingress controllers will will require the pathType or path to be set to a different value.
+  pathType: ImplementationSpecific
+  path: "/"
   # backend port number
   servicePort: 80
 
@@ -168,12 +171,19 @@ postDelete:
 # Set a bootstrap password. If leave empty, a random password will be generated.
 bootstrapPassword: ""
 
+startupProbe:
+  ## should be ready within 2 minutes
+  timeoutSeconds: 5
+  periodSeconds: 10
+  failureThreshold: 12
 livenessProbe:
-  initialDelaySeconds: 60
+  timeoutSeconds: 5
   periodSeconds: 30
+  failureThreshold: 5
 readinessProbe:
-  initialDelaySeconds: 5
+  timeoutSeconds: 5
   periodSeconds: 30
+  failureThreshold: 5
 
 global:
   cattle:
@@ -185,3 +195,7 @@ global:
 # helm values to use when installing the rancher-webhook chart.
 # helm values set here will override all other global values used when installing the webhook such as priorityClassName and systemRegistry settings.
 webhook: ""
+
+# helm values to use when installing the fleet chart.
+# helm values set here will override all other global values used when installing the fleet chart.
+fleet: ""

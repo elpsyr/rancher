@@ -1,17 +1,16 @@
 package charts
 
 import (
-	"io"
-	"net/http"
+	"context"
 	"strings"
 	"time"
 	"unicode"
 
-	"github.com/rancher/rancher/tests/framework/clients/rancher"
-	v1 "github.com/rancher/rancher/tests/framework/clients/rancher/v1"
-	"github.com/rancher/rancher/tests/framework/extensions/charts"
-	"github.com/rancher/rancher/tests/framework/extensions/ingresses"
-	"github.com/rancher/rancher/tests/framework/extensions/workloads"
+	"github.com/rancher/shepherd/clients/rancher"
+	v1 "github.com/rancher/shepherd/clients/rancher/v1"
+	"github.com/rancher/shepherd/extensions/charts"
+	"github.com/rancher/shepherd/extensions/ingresses"
+	"github.com/rancher/shepherd/extensions/workloads"
 	appv1 "k8s.io/api/apps/v1"
 	kubewait "k8s.io/apimachinery/pkg/util/wait"
 )
@@ -63,15 +62,10 @@ func getChartCaseEndpointUntilBodyHas(client *rancher.Client, host, path, bodyPa
 		}, str)
 	}
 
-	err = kubewait.Poll(500*time.Millisecond, 2*time.Minute, func() (ongoing bool, err error) {
-		result, err := ingresses.GetExternalIngressResponse(client, host, path, false)
+	err = kubewait.PollUntilContextTimeout(context.TODO(), 500*time.Millisecond, 2*time.Minute, true, func(context.Context) (ongoing bool, err error) {
+		bodyString, err := ingresses.GetExternalIngressResponse(client, host, path, false)
 		if err != nil {
 			return ongoing, err
-		}
-
-		bodyString, err := convertHTTPBodyToString(result)
-		if err != nil {
-			return !ongoing, err
 		}
 
 		trimmedBody := trimAllSpaces(bodyString)
@@ -83,7 +77,7 @@ func getChartCaseEndpointUntilBodyHas(client *rancher.Client, host, path, bodyPa
 		return
 	})
 	if err != nil {
-		return
+		return false, err
 	}
 
 	return
@@ -112,15 +106,4 @@ func listIstioDeployments(steveclient *v1.Client) (deploymentSpecList []*appv1.D
 	}
 
 	return deploymentSpecList, nil
-}
-
-// convertHTTPBodyToString converts the body of an http response to a string
-func convertHTTPBodyToString(resp *http.Response) (string, error) {
-	bodyBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", err
-	}
-
-	bodyString := string(bodyBytes)
-	return bodyString, nil
 }

@@ -5,23 +5,22 @@ package charts
 import (
 	"fmt"
 	"math/rand"
+	"net/url"
 	"testing"
 
-	"net/url"
-
 	"github.com/rancher/norman/types"
-	"github.com/rancher/rancher/tests/framework/clients/rancher"
-	"github.com/rancher/rancher/tests/framework/clients/rancher/catalog"
-	management "github.com/rancher/rancher/tests/framework/clients/rancher/generated/management/v3"
-	v1 "github.com/rancher/rancher/tests/framework/clients/rancher/v1"
-	"github.com/rancher/rancher/tests/framework/extensions/charts"
-	"github.com/rancher/rancher/tests/framework/extensions/clusters"
-	"github.com/rancher/rancher/tests/framework/extensions/ingresses"
-	"github.com/rancher/rancher/tests/framework/extensions/namespaces"
-	"github.com/rancher/rancher/tests/framework/extensions/projects"
-	"github.com/rancher/rancher/tests/framework/extensions/secrets"
-	"github.com/rancher/rancher/tests/framework/extensions/services"
-	"github.com/rancher/rancher/tests/framework/pkg/session"
+	"github.com/rancher/shepherd/clients/rancher"
+	"github.com/rancher/shepherd/clients/rancher/catalog"
+	management "github.com/rancher/shepherd/clients/rancher/generated/management/v3"
+	v1 "github.com/rancher/shepherd/clients/rancher/v1"
+	"github.com/rancher/shepherd/extensions/charts"
+	"github.com/rancher/shepherd/extensions/clusters"
+	"github.com/rancher/shepherd/extensions/ingresses"
+	"github.com/rancher/shepherd/extensions/namespaces"
+	"github.com/rancher/shepherd/extensions/projects"
+	"github.com/rancher/shepherd/extensions/secrets"
+	"github.com/rancher/shepherd/extensions/services"
+	"github.com/rancher/shepherd/pkg/session"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -56,45 +55,44 @@ func (m *MonitoringTestSuite) SetupSuite() {
 	clusterName := client.RancherConfig.ClusterName
 	require.NotEmptyf(m.T(), clusterName, "Cluster name to install is not set")
 
-	// Get clusterID with clusterName
-	clusterID, err := clusters.GetClusterIDByName(client, clusterName)
+	// Get cluster meta
+	cluster, err := clusters.NewClusterMeta(client, clusterName)
 	require.NoError(m.T(), err)
 
 	// Change alert manager and grafana paths if it's not local cluster
-	if clusterID != clusterName {
-		alertManagerPath = fmt.Sprintf("k8s/clusters/%s/%s", clusterID, alertManagerPath)
-		grafanaPath = fmt.Sprintf("k8s/clusters/%s/%s", clusterID, grafanaPath)
-		prometheusTargetsPathAPI = fmt.Sprintf("k8s/clusters/%s/%s", clusterID, prometheusTargetsPathAPI)
+	if !cluster.IsLocal {
+		alertManagerPath = fmt.Sprintf("k8s/clusters/%s/%s", cluster.ID, alertManagerPath)
+		grafanaPath = fmt.Sprintf("k8s/clusters/%s/%s", cluster.ID, grafanaPath)
+		prometheusTargetsPathAPI = fmt.Sprintf("k8s/clusters/%s/%s", cluster.ID, prometheusTargetsPathAPI)
 	}
 
 	// Change prometheus paths to use the clusterID
-	prometheusGraphPath = fmt.Sprintf("k8s/clusters/%s/%s", clusterID, prometheusGraphPath)
-	prometheusRulesPath = fmt.Sprintf("k8s/clusters/%s/%s", clusterID, prometheusRulesPath)
-	prometheusTargetsPath = fmt.Sprintf("k8s/clusters/%s/%s", clusterID, prometheusTargetsPath)
+	prometheusGraphPath = fmt.Sprintf("k8s/clusters/%s/%s", cluster.ID, prometheusGraphPath)
+	prometheusRulesPath = fmt.Sprintf("k8s/clusters/%s/%s", cluster.ID, prometheusRulesPath)
+	prometheusTargetsPath = fmt.Sprintf("k8s/clusters/%s/%s", cluster.ID, prometheusTargetsPath)
 
 	// Get latest versions of the monitoring chart
 	latestMonitoringVersion, err := client.Catalog.GetLatestChartVersion(charts.RancherMonitoringName, catalog.RancherChartRepo)
 	require.NoError(m.T(), err)
 
 	// Get project system projectId
-	project, err := projects.GetProjectByName(client, clusterID, projectName)
+	project, err := projects.GetProjectByName(client, cluster.ID, projectName)
 	require.NoError(m.T(), err)
 
 	m.project = project
 	require.NotEmpty(m.T(), m.project)
 
 	m.chartInstallOptions = &charts.InstallOptions{
-		ClusterName: clusterName,
-		ClusterID:   clusterID,
-		Version:     latestMonitoringVersion,
-		ProjectID:   m.project.ID,
+		Cluster:   cluster,
+		Version:   latestMonitoringVersion,
+		ProjectID: m.project.ID,
 	}
 	m.chartFeatureOptions = &charts.RancherMonitoringOpts{
-		IngressNginx:         true,
-		RKEControllerManager: true,
-		RKEEtcd:              true,
-		RKEProxy:             true,
-		RKEScheduler:         true,
+		IngressNginx:      true,
+		ControllerManager: true,
+		Etcd:              true,
+		Proxy:             true,
+		Scheduler:         true,
 	}
 }
 
